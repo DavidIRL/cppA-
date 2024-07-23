@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -8,8 +9,13 @@ using std::istringstream;
 using std::ifstream;
 using std::string;
 using std::vector;
+using std::sort;
+using std::abs;
 
-enum class State {kEmpty, kObstacle};
+enum class State {kStart, kFinish, kEmpty, kBlocked, kClosed, kPath};
+// cardinal direction values
+const int delta[4][2]{{-1,0},{1,0},{0,-1},{0,1}};
+
 
 vector<State> ParseLine(string line) {
     istringstream line_stream(line);
@@ -20,15 +26,16 @@ vector<State> ParseLine(string line) {
         if (n == 0) {
             row.push_back(State::kEmpty);
         } else {
-            row.push_back(State::kObstacle);
+            row.push_back(State::kBlocked);
         }
     }
     
     return row;
 }
 
+
 vector<vector<State>> ReadBoardFile(string path) {
-    ifstream myfile(path);
+    ifstream myfile (path);
     vector<vector<State>> board{};
 
     if (myfile) {
@@ -41,12 +48,104 @@ vector<vector<State>> ReadBoardFile(string path) {
     return board;
 }
 
-string CellString(State cell) {
-    switch(cell) {
-        case State::kObstacle: return "⛰️   ";
-        default: return "0   ";
+
+bool Compare(const vector<int> first, const vector<int> second) {
+    int f1 = first[2] + first[3]; // first's g + h
+    int f2 = second[2] + second[3]; // second's g + h 
+
+    return f1 > f2;
+}
+
+
+void CellSort(vector<vector<int>> *v) {
+    sort(v->begin(), v->end(), Compare);
+}
+
+
+int Heuristic(int x1, int y1, int x2, int y2) {
+    return abs(x2 - x1) + abs(y2 - y1);
+}
+
+
+bool CheckValidCell(int x, int y, vector<vector<State>> &grid) {
+    bool in_x = (0 <= x && x < grid.size());
+    bool in_y = (0 <= y && y < grid[0].size());
+    if (in_x && in_y) {
+        // node is useable if not Closed (already searched) or Blocked
+        return grid[x][y] == State::kEmpty;
+    }
+    return false;
+}
+
+
+void AddToOpen(int x, int y, int g, int h,
+               vector<vector<int>> &open, vector<vector<State>> &grid) {
+    open.push_back(vector<int>{x, y, g, h});
+    grid[x][y] = State::kClosed;
+}
+
+
+void ExpandNeighbors(const vector<int> &current, int goal[2],
+                     vector<vector<int>> &open, vector<vector<State>> &grid) {
+    int x = current[0];
+    int y = current[1];
+    int g = current[2];
+
+    for (int i = 0; i < 4; i++) {
+        int x2 = x + delta[i][0];
+        int y2 = y + delta[i][1];
+
+        if (CheckValidCell(x2, y2, grid)) {
+            int g2 = g+1;
+            int h2 = Heuristic(x2, y2, goal[0], goal[1]);
+            AddToOpen(x2, y2, g2, h2, open, grid);
+        }
     }
 }
+
+
+vector<vector<State>> Search(vector<vector<State>> grid,
+                             int init[2], int goal[2]) {
+    vector<vector<int>> open{};
+
+    int x = init[0];
+    int y = init[1];
+    int g = 0;
+    int h = Heuristic(x, y, goal[0], goal[1]);
+    AddToOpen(x, y, g, h, open, grid);
+
+    while (open.size() > 0) {
+        CellSort(&open);
+        auto current = open.back();
+        open.pop_back();
+        x = current[0];
+        y = current[1];
+        grid[x][y] = State::kPath;
+
+        if (x == goal[0] && y == goal[1]) {
+            grid[init[0]][init[1]] = State::kStart;
+            grid[x][y] = State::kFinish;
+            return grid;
+        }
+
+        ExpandNeighbors(current, goal, open, grid);
+    }
+    // open/available nodes is empty && we haven't found the goal
+    cout << "No path found!\n";
+    return vector<vector<State>>{};
+}
+
+
+string CellString(State cell) {
+    switch (cell) {
+        case State::kBlocked: return "⛰️   ";
+        case State::kStart: return "🚦   ";
+        case State::kFinish: return "🏁   ";
+        case State::kPath: return "🚗   ";
+        default: return " 0   ";             
+    }
+}
+
 
 void PrintBoard(const vector<vector<State>> board) {
     for (int i = 0; i < board.size(); i++) {
@@ -58,8 +157,10 @@ void PrintBoard(const vector<vector<State>> board) {
 }
 
 int main() {
+    int init[2]{0,0};
+    int goal[2]{4,5};
     vector<vector<State>> board = ReadBoardFile("1.board");
-    PrintBoard(board);
+    vector<vector<State>> solved = Search(board, init, goal);
+    PrintBoard(solved);
 }
-
 
