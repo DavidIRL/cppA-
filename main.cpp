@@ -68,12 +68,11 @@ int Heuristic(int x1, int y1, int x2, int y2) {
 
 
 bool CheckValidCell(int x, int y, vector<vector<State>> &grid) {
-    bool in_x = (0 <= x && x < grid.size());
-    bool in_y = (0 <= y && y < grid[0].size());
-    if (in_x && in_y) {
+    bool in_x = (x >= 0 && x < grid.size());
+    bool in_y = (y >= 0 && y < grid[0].size());
+    if (in_x && in_y)
         // node is useable if not Closed (already searched) or Blocked
         return grid[x][y] == State::kEmpty;
-    }
     return false;
 }
 
@@ -106,7 +105,7 @@ void ExpandNeighbors(const vector<int> &current, int goal[2],
 
 vector<vector<State>> Search(vector<vector<State>> grid,
                              int init[2], int goal[2]) {
-    vector<vector<int>> open{};
+    vector<vector<int>> open {};
 
     int x = init[0];
     int y = init[1];
@@ -124,14 +123,14 @@ vector<vector<State>> Search(vector<vector<State>> grid,
 
         if (x == goal[0] && y == goal[1]) {
             grid[init[0]][init[1]] = State::kStart;
-            grid[x][y] = State::kFinish;
+            grid[goal[x]][goal[y]] = State::kFinish;
             return grid;
         }
 
         ExpandNeighbors(current, goal, open, grid);
     }
     // open/available nodes is empty && we haven't found the goal
-    cout << "No path found!\n";
+    cout << "No path to goal available!\n";
     return vector<vector<State>>{};
 }
 
@@ -159,8 +158,8 @@ void PrintBoard(const vector<vector<State>> board) {
 int main() {
     int init[2]{0,0};
     int goal[2]{4,5};
-    vector<vector<State>> board = ReadBoardFile("1.board");
-    vector<vector<State>> solved = Search(board, init, goal);
+    auto board = ReadBoardFile("1.board");
+    auto solved = Search(board, init, goal);
     PrintBoard(solved);
 }
 
