@@ -1,20 +1,22 @@
-#include <algorithm>
+#include <algorithm>  // for sort
+#include <fstream>
 #include <iostream>
 #include <sstream>
-#include <fstream>
 #include <string>
 #include <vector>
 using std::cout;
-using std::istringstream;
 using std::ifstream;
+using std::istringstream;
+using std::sort;
 using std::string;
 using std::vector;
-using std::sort;
 using std::abs;
 
+// TODO: Add kStart and kFinish enumerators to the State enum.
 enum class State {kStart, kFinish, kEmpty, kBlocked, kClosed, kPath};
-// cardinal direction values
-const int delta[4][2]{{-1,0},{1,0},{0,-1},{0,1}};
+
+// directional deltas
+const int delta[4][2]{{-1, 0}, {0, -1}, {1, 0}, {0, 1}};
 
 
 vector<State> ParseLine(string line) {
@@ -23,143 +25,140 @@ vector<State> ParseLine(string line) {
     char c;
     vector<State> row;
     while (line_stream >> n >> c && c == ',') {
-        if (n == 0) {
-            row.push_back(State::kEmpty);
-        } else {
-            row.push_back(State::kBlocked);
-        }
+      if (n == 0) {
+        row.push_back(State::kEmpty);
+      } else {
+        row.push_back(State::kBlocked);
+      }
     }
-    
     return row;
 }
 
 
 vector<vector<State>> ReadBoardFile(string path) {
-    ifstream myfile (path);
-    vector<vector<State>> board{};
+  ifstream myfile (path);
+  vector<vector<State>> board{};
 
-    if (myfile) {
-        string line;
-        while (getline(myfile, line)) {
-            vector<State> row = ParseLine(line);
-            board.push_back(row);
-        }
+  if (myfile) {
+    string line;
+    while (getline(myfile, line)) {
+      vector<State> row = ParseLine(line);
+      board.push_back(row);
     }
-    return board;
+  }
+  return board;
 }
 
 
 bool Compare(const vector<int> first, const vector<int> second) {
-    int f1 = first[2] + first[3]; // first's g + h
-    int f2 = second[2] + second[3]; // second's g + h 
-
-    return f1 > f2;
+  int f1 = first[2] + first[3]; // f1 = g1 + h1
+  int f2 = second[2] + second[3]; // f2 = g2 + h2
+  return f1 > f2; 
 }
 
 
 void CellSort(vector<vector<int>> *v) {
-    sort(v->begin(), v->end(), Compare);
+  sort(v->begin(), v->end(), Compare);
 }
 
 
 int Heuristic(int x1, int y1, int x2, int y2) {
-    return abs(x2 - x1) + abs(y2 - y1);
+  return abs(x2 - x1) + abs(y2 - y1);
 }
 
 
 bool CheckValidCell(int x, int y, vector<vector<State>> &grid) {
-    bool in_x = (x >= 0 && x < grid.size());
-    bool in_y = (y >= 0 && y < grid[0].size());
-    if (in_x && in_y)
-        // node is useable if not Closed (already searched) or Blocked
-        return grid[x][y] == State::kEmpty;
-    return false;
+  bool in_x = (x >= 0 && x < grid.size());
+  bool in_y = (y >= 0 && y < grid[0].size());
+  if (in_x && in_y)
+    return grid[x][y] == State::kEmpty;
+  return false;
 }
 
 
 void AddToOpen(int x, int y, int g, int h,
                vector<vector<int>> &open, vector<vector<State>> &grid) {
-    open.push_back(vector<int>{x, y, g, h});
-    grid[x][y] = State::kClosed;
+  // Add node to open vector, and mark grid cell as closed.
+  open.push_back(vector<int>{x, y, g, h});
+  grid[x][y] = State::kClosed;
 }
 
 
 void ExpandNeighbors(const vector<int> &current, int goal[2],
                      vector<vector<int>> &open, vector<vector<State>> &grid) {
-    int x = current[0];
-    int y = current[1];
-    int g = current[2];
+  int x = current[0];
+  int y = current[1];
+  int g = current[2];
 
-    for (int i = 0; i < 4; i++) {
-        int x2 = x + delta[i][0];
-        int y2 = y + delta[i][1];
+  for (int i = 0; i < 4; i++) {
+    int x2 = x + delta[i][0];
+    int y2 = y + delta[i][1];
 
-        if (CheckValidCell(x2, y2, grid)) {
-            int g2 = g+1;
-            int h2 = Heuristic(x2, y2, goal[0], goal[1]);
-            AddToOpen(x2, y2, g2, h2, open, grid);
-        }
+    if (CheckValidCell(x2, y2, grid)) {
+      int g2 = g + 1;
+      int h2 = Heuristic(x2, y2, goal[0], goal[1]);
+      AddToOpen(x2, y2, g2, h2, open, grid);
     }
+  }
 }
 
 
 vector<vector<State>> Search(vector<vector<State>> grid,
                              int init[2], int goal[2]) {
-    vector<vector<int>> open {};
+  vector<vector<int>> open {};
+  
+  int x = init[0];
+  int y = init[1];
+  int g = 0;
+  int h = Heuristic(x, y, goal[0],goal[1]);
+  AddToOpen(x, y, g, h, open, grid);
 
-    int x = init[0];
-    int y = init[1];
-    int g = 0;
-    int h = Heuristic(x, y, goal[0], goal[1]);
-    AddToOpen(x, y, g, h, open, grid);
+  while (open.size() > 0) {
+    CellSort(&open);
+    auto current = open.back();
+    open.pop_back();
+    x = current[0];
+    y = current[1];
+    grid[x][y] = State::kPath;
 
-    while (open.size() > 0) {
-        CellSort(&open);
-        auto current = open.back();
-        open.pop_back();
-        x = current[0];
-        y = current[1];
-        grid[x][y] = State::kPath;
-
-        if (x == goal[0] && y == goal[1]) {
-            grid[init[0]][init[1]] = State::kStart;
-            grid[goal[x]][goal[y]] = State::kFinish;
-            return grid;
-        }
-
-        ExpandNeighbors(current, goal, open, grid);
+    if (x == goal[0] && y == goal[1]) {
+      grid[init[0]][init[1]] = State::kStart;
+      grid[x][y] = State::kFinish; 
+      return grid;
     }
-    // open/available nodes is empty && we haven't found the goal
-    cout << "No path to goal available!\n";
-    return vector<vector<State>>{};
+    
+    ExpandNeighbors(current, goal, open, grid);
+  }
+  cout << "No path found!" << "\n";
+  return vector<vector<State>>{};
 }
 
 
 string CellString(State cell) {
-    switch (cell) {
-        case State::kBlocked: return "⛰️   ";
-        case State::kStart: return "🚦   ";
-        case State::kFinish: return "🏁   ";
-        case State::kPath: return "🚗   ";
-        default: return " 0   ";             
-    }
+  switch(cell) {
+    case State::kBlocked: return "⛰️   ";
+    case State::kStart: return "🚦   ";
+    case State::kFinish: return "🏁   ";
+    case State::kPath: return "🚗   ";
+    default: return " 0   "; 
+  }
 }
 
 
 void PrintBoard(const vector<vector<State>> board) {
-    for (int i = 0; i < board.size(); i++) {
-        for (int j = 0; j < board[i].size(); j++) {
-            cout << CellString(board[i][j]);
-        }
-        cout << "\n";
+  for (int i = 0; i < board.size(); i++) {
+    for (int j = 0; j < board[i].size(); j++) {
+      cout << CellString(board[i][j]);
     }
+    cout << "\n";
+  }
 }
+
 
 int main() {
-    int init[2]{0,0};
-    int goal[2]{4,5};
-    auto board = ReadBoardFile("1.board");
-    auto solved = Search(board, init, goal);
-    PrintBoard(solved);
+  int init[2]{0, 0};
+  int goal[2]{4, 5};
+  auto board = ReadBoardFile("grid.board");
+  auto solution = Search(board, init, goal);
+  PrintBoard(solution);
 }
-
